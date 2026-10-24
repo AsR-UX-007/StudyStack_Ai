@@ -17,7 +17,7 @@
    Paste with Command+V, then press Enter.
 4. Start the app:
    ```bash
-   export GEMINI_MODEL="gemini-2.5-flash"
+   export GEMINI_MODEL="gemini-3.6-flash"
    uvicorn main:app --reload --host 127.0.0.1 --port 8000
    ```
 5. Check http://127.0.0.1:8000/api/health, then open http://127.0.0.1:8000.
