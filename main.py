@@ -8,7 +8,14 @@ from pydantic import BaseModel, Field
 
 BASE_DIR = Path(__file__).resolve().parent
 app = FastAPI(title="StudyStack AI", version="1.1.0")
-app.mount("/assets", StaticFiles(directory=BASE_DIR / "assets"), name="assets")
+ASSETS_DIR = BASE_DIR / "assets"
+
+if ASSETS_DIR.is_dir():
+    app.mount(
+        "/assets",
+        StaticFiles(directory=ASSETS_DIR),
+        name="assets"
+    )
 
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
