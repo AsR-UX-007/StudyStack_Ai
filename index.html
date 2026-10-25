@@ -238,11 +238,37 @@ $('chatForm').addEventListener('submit', async e=>{
   addBubble(q,'user'); $('chatInput').value='';
   const wait=document.createElement('div'); wait.className='bubble ai'; wait.textContent='Thinking…'; $('chat').appendChild(wait); $('chat').scrollTop=$('chat').scrollHeight;
   try {
-    const response = await fetch('/api/chat', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({message:q, tasks:tasks.map(t=>({name:t.name,subject:t.subject,priority:t.priority,deadline:t.deadline,completed:t.completed,duration:t.duration}))})
-    });
+    
+const controller = new AbortController();
+const timeoutId = setTimeout(() => controller.abort(), 30000);
+let response;
+
+try {
+  response = await fetch('/api/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      message: q,
+      tasks: tasks.map(t => ({
+        name: t.name,
+        subject: t.subject,
+        priority: t.priority,
+        deadline: t.deadline,
+        completed: t.completed,
+        duration: t.duration
+      }))
+    }),
+    signal: controller.signal
+  });
+} catch (err) {
+  if (err.name === 'AbortError') {
+    throw new Error('The AI is taking too long. Please try again.');
+  }
+  throw err;
+} finally {
+  clearTimeout(timeoutId);
+}
+
     const data = await response.json();
     wait.remove();
     if (!response.ok) throw new Error(data.detail || 'AI request failed');
