@@ -53,18 +53,24 @@ def public_config():
     }
 
 
+
 def generate_with_retry(client, model, prompt):
-    """Retry temporary Gemini overload and service errors."""
-    for attempt in range(3):
+    from google.genai import types
+
+    for attempt in range(2):
         try:
             return client.models.generate_content(
                 model=model,
-                contents=prompt
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    temperature=0.4,
+                    max_output_tokens=500
+                )
             )
         except Exception as exc:
-            error_text = str(exc).upper()
+            message = str(exc).upper()
 
-            temporary_error = any(code in error_text for code in [
+            temporary_error = any(code in message for code in [
                 "503",
                 "UNAVAILABLE",
                 "429",
@@ -75,15 +81,11 @@ def generate_with_retry(client, model, prompt):
                 "DEADLINE_EXCEEDED"
             ])
 
-            if not temporary_error or attempt == 2:
+            if not temporary_error or attempt == 1:
                 raise
 
-            delay = 2 ** (attempt + 1)
-            print(
-                f"Temporary Gemini error on attempt "
-                f"{attempt + 1}/3. Retrying in {delay}s."
-            )
-            time.sleep(delay)
+            print("Temporary Gemini error. Retrying once in 1 second.")
+            time.sleep(1)
 
 
 @app.post("/api/chat")
@@ -117,7 +119,13 @@ def chat(payload: ChatRequest):
             f"Student question: {payload.message}"
         )
 
-        response = generate_with_retry(client, model, prompt)
+        from google.genai import types
+
+response = generate_with_retry(
+    client,
+    model,
+    prompt
+)
 
         answer = (getattr(response, "text", None) or "").strip()
 
