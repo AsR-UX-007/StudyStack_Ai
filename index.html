@@ -257,68 +257,346 @@ $('chatForm').addEventListener('submit', async e=>{
 
 document.querySelectorAll('[data-prompt]').forEach(b=>b.addEventListener('click',()=>{$('chatInput').value=b.dataset.prompt;$('chatForm').requestSubmit()}));
 
-// Supabase authentication + per-account cloud task storage.
-let authMode='login';
-function authMessage(message,isError=true){$('authMessage').textContent=message||'';$('authMessage').style.color=isError?'#b42318':'#07865c'}
-function setAuthMode(mode){authMode=mode;const signup=mode==='signup';$('nameField').style.display=signup?'grid':'none';$('authName').required=signup;$('loginTab').classList.toggle('active',!signup);$('signupTab').classList.toggle('active',signup);$('authTitle').textContent=signup?'Create your account':'Welcome back';$('authSubtitle').textContent=signup?'Create a personal workspace for your study tasks.':'Sign in to open your personal study workspace.';$('authSubmit').textContent=signup?'Create account':'Sign in';$('authPassword').autocomplete=signup?'new-password':'current-password';authMessage('')}
-$('loginTab').addEventListener('click',()=>setAuthMode('login'));
-$('signupTab').addEventListener('click',()=>setAuthMode('signup'));
-async function loadUserTasks(user){
-  activeUser=user;taskStorageKey='studystack_tasks_'+user.id;
-  const {data,error}=await supabaseClient.from('student_data').select('tasks').eq('user_id',user.id).maybeSingle();
-  if(error) throw new Error('Could not load your tasks. Check that the Supabase student_data table and RLS policies are created. '+error.message);
-  if(data && Array.isArray(data.tasks)) tasks=data.tasks;
-  else {
-    try{tasks=JSON.parse(localStorage.getItem(taskStorageKey))||[]}catch(e){tasks=[]}
-    const {error:saveError}=await supabaseClient.from('student_data').upsert({user_id:user.id,tasks:tasks,updated_at:new Date().toISOString()},{onConflict:'user_id'});
-    if(saveError) throw new Error('Could not create your task space. Check the Supabase table and RLS policies. '+saveError.message);
+
+ // Supabase authentication + per-account cloud task storage.
+let authMode = 'login';
+let sessionUserBeingLoaded = null;
+let authSubscription = null;
+
+function authMessage(message, isError = true) {
+  $('authMessage').textContent = message || '';
+  $('authMessage').style.color = isError ? '#b42318' : '#07865c';
+}
+
+function setAuthMode(mode) {
+  authMode = mode;
+  const signup = mode === 'signup';
+
+  $('nameField').style.display = signup ? 'grid' : 'none';
+  $('authName').required = signup;
+  $('loginTab').classList.toggle('active', !signup);
+  $('signupTab').classList.toggle('active', signup);
+  $('authTitle').textContent = signup
+    ? 'Create your account'
+    : 'Welcome back';
+  $('authSubtitle').textContent = signup
+    ? 'Create a personal workspace for your study tasks.'
+    : 'Sign in to open your personal study workspace.';
+  $('authSubmit').textContent = signup ? 'Create account' : 'Sign in';
+  $('authPassword').autocomplete = signup
+    ? 'new-password'
+    : 'current-password';
+
+  authMessage('');
+}
+
+$('loginTab').addEventListener('click', () => setAuthMode('login'));
+$('signupTab').addEventListener('click', () => setAuthMode('signup'));
+
+async function loadUserTasks(user) {
+  activeUser = user;
+  taskStorageKey = 'studystack_tasks_' + user.id;
+
+  const { data, error } = await supabaseClient
+    .from('student_data')
+    .select('tasks')
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      'Could not load your tasks. Check the Supabase student_data table and RLS policies. ' +
+      error.message
+    );
   }
-  nextId=Math.max(0,...tasks.map(t=>Number(t.id)||0))+1;history=[];persist();render();
-}
-function unlockApp(user){
-  activeUser=user;const name=currentDisplayName();const initials=name.trim().split(/\s+/).slice(0,2).map(x=>x[0]).join('').toUpperCase()||'ST';
-  $('sidebarUserName').textContent=name;$('userAvatar').textContent=initials;$('authShell').style.display='none';$('studyApp').classList.add('unlocked');
-  $('chat').innerHTML=`<div class="bubble ai">Hi ${esc(name)}! 👋 I’m your StudyStack assistant. I can help you make a study plan, choose your next task, or explain DSA concepts. What would you like help with?</div>`;
-  go('dashboard');refreshGreeting();checkAIStatus();
-}
-async function startAuthenticatedSession(user){
-  try{await loadUserTasks(user);unlockApp(user);}
-  catch(e){authMessage(e.message);console.error(e);}
-}
-$('authForm').addEventListener('submit',async e=>{
-  e.preventDefault();if(!supabaseClient){authMessage('Authentication setup is incomplete. Check SUPABASE_URL and SUPABASE_ANON_KEY on Render.');return}
-  const email=$('authEmail').value.trim(),password=$('authPassword').value;
-  $('authSubmit').disabled=true;$('authSubmit').textContent=authMode==='signup'?'Creating account…':'Signing in…';authMessage('');
-  try{
-    if(authMode==='signup'){
-      const full_name=$('authName').value.trim();if(!full_name)throw new Error('Please enter your name.');
-      const {data,error}=await supabaseClient.auth.signUp({email,password,options:{data:{full_name}}});if(error)throw error;
-      if(data.session) await startAuthenticatedSession(data.user); else authMessage('Account created. Check your email to confirm your account, then sign in.',false);
-    } else {
-      const {data,error}=await supabaseClient.auth.signInWithPassword({email,password});if(error)throw error;await startAuthenticatedSession(data.user);
+
+  if (data && Array.isArray(data.tasks)) {
+    tasks = data.tasks;
+  } else {
+    try {
+      tasks = JSON.parse(localStorage.getItem(taskStorageKey)) || [];
+    } catch (e) {
+      tasks = [];
     }
-  }catch(err){authMessage(err.message||'Authentication failed. Please try again.')}finally{$('authSubmit').disabled=false;$('authSubmit').textContent=authMode==='signup'?'Create account':'Sign in'}
-});
-$('googleSignIn').addEventListener('click',async()=>{
-  if(!supabaseClient){authMessage('Authentication setup is incomplete. Check Supabase environment variables on Render.');return}
-  const {error}=await supabaseClient.auth.signInWithOAuth({provider:'google',options:{redirectTo:window.location.origin}});if(error)authMessage(error.message);
-});
-$('signOutBtn').addEventListener('click',async()=>{if(supabaseClient)await supabaseClient.auth.signOut();activeUser=null;supabaseReady=false;$('studyApp').classList.remove('unlocked');$('studyApp').style.display='none';$('authShell').style.display='grid';$('authPassword').value='';setAuthMode('login')});
-async function initAuth(){
-  try{
-    const response=await fetch('/api/config');const config=await response.json();
-    if(!config.supabase_url||!config.supabase_anon_key||!window.supabase){authMessage('Supabase is not configured yet. Add SUPABASE_URL and SUPABASE_ANON_KEY to Render, then redeploy.');return}
-    supabaseClient=window.supabase.createClient(config.supabase_url,config.supabase_anon_key);supabaseReady=true;
-    const {data,error}=await supabaseClient.auth.getSession();if(error)throw error;
-    if(data.session) await startAuthenticatedSession(data.session.user);
-    supabaseClient.auth.onAuthStateChange(async(event,session)=>{
-      if(event==='SIGNED_IN'&&session?.user&&(!activeUser||activeUser.id!==session.user.id)) await startAuthenticatedSession(session.user);
-      if(event==='SIGNED_OUT'){activeUser=null;$('studyApp').classList.remove('unlocked');$('authShell').style.display='grid'}
-    });
-  }catch(err){authMessage('Could not initialize login: '+(err.message||'Check Supabase configuration.'));console.error(err)}
+
+    const { error: saveError } = await supabaseClient
+      .from('student_data')
+      .upsert(
+        {
+          user_id: user.id,
+          tasks: tasks,
+          updated_at: new Date().toISOString()
+        },
+        { onConflict: 'user_id' }
+      );
+
+    if (saveError) {
+      throw new Error(
+        'Could not create your task space. Check the Supabase table and RLS policies. ' +
+        saveError.message
+      );
+    }
+  }
+
+  nextId = Math.max(0, ...tasks.map(t => Number(t.id) || 0)) + 1;
+  history = [];
+  persist();
+  render();
 }
-setAuthMode('login');resetForm();render();initAuth();
-setInterval(()=>{if(activeUser)refreshGreeting()},60000);
+
+function unlockApp(user) {
+  activeUser = user;
+
+  const name = currentDisplayName();
+  const initials = name.trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map(x => x[0])
+    .join('')
+    .toUpperCase() || 'ST';
+
+  $('sidebarUserName').textContent = name;
+  $('userAvatar').textContent = initials;
+  $('authShell').style.display = 'none';
+  $('studyApp').classList.add('unlocked');
+
+  $('chat').innerHTML =
+    `<div class="bubble ai">Hi ${esc(name)}! 👋 I’m your StudyStack assistant. I can help you make a study plan, choose your next task, or explain DSA concepts. What would you like help with?</div>`;
+
+  go('dashboard');
+  refreshGreeting();
+  checkAIStatus();
+}
+
+async function startAuthenticatedSession(user) {
+  try {
+    await loadUserTasks(user);
+    unlockApp(user);
+    authMessage('');
+  } catch (e) {
+    authMessage(e.message);
+    console.error('Could not start authenticated session:', e);
+  }
+}
+
+$('authForm').addEventListener('submit', async e => {
+  e.preventDefault();
+
+  if (!supabaseClient) {
+    authMessage(
+      'Authentication setup is incomplete. Check SUPABASE_URL and SUPABASE_ANON_KEY on Render.'
+    );
+    return;
+  }
+
+  const email = $('authEmail').value.trim();
+  const password = $('authPassword').value;
+
+  $('authSubmit').disabled = true;
+  $('authSubmit').textContent =
+    authMode === 'signup' ? 'Creating account…' : 'Signing in…';
+  authMessage('');
+
+  try {
+    if (authMode === 'signup') {
+      const full_name = $('authName').value.trim();
+
+      if (!full_name) {
+        throw new Error('Please enter your name.');
+      }
+
+      const { data, error } = await supabaseClient.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { full_name }
+        }
+      });
+
+      if (error) throw error;
+
+      if (data.session && data.user) {
+        await handleSignedInUser(data.user);
+      } else {
+        authMessage(
+          'Account created. Check your email to confirm your account, then sign in.',
+          false
+        );
+      }
+    } else {
+      const { data, error } = await supabaseClient.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (error) throw error;
+
+      if (data.user) {
+        await handleSignedInUser(data.user);
+      }
+    }
+  } catch (err) {
+    authMessage(err.message || 'Authentication failed. Please try again.');
+  } finally {
+    $('authSubmit').disabled = false;
+    $('authSubmit').textContent =
+      authMode === 'signup' ? 'Create account' : 'Sign in';
+  }
+});
+
+$('googleSignIn').addEventListener('click', async () => {
+  if (!supabaseClient) {
+    authMessage(
+      'Authentication setup is incomplete. Check Supabase environment variables on Render.'
+    );
+    return;
+  }
+
+  authMessage('');
+
+  try {
+    const { error } = await supabaseClient.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin
+      }
+    });
+
+    if (error) throw error;
+  } catch (err) {
+    authMessage(err.message || 'Google sign-in failed.');
+  }
+});
+
+$('signOutBtn').addEventListener('click', async () => {
+  try {
+    if (supabaseClient) {
+      const { error } = await supabaseClient.auth.signOut();
+      if (error) throw error;
+    }
+
+    activeUser = null;
+    sessionUserBeingLoaded = null;
+
+    $('studyApp').classList.remove('unlocked');
+    $('studyApp').style.display = 'none';
+    $('authShell').style.display = 'grid';
+    $('authPassword').value = '';
+
+    setAuthMode('login');
+  } catch (err) {
+    authMessage('Could not sign out: ' + err.message);
+  }
+});
+
+async function handleSignedInUser(user) {
+  if (!user) return;
+
+  // Prevent duplicate loading of the same user's session.
+  if (
+    activeUser?.id === user.id ||
+    sessionUserBeingLoaded === user.id
+  ) {
+    return;
+  }
+
+  sessionUserBeingLoaded = user.id;
+
+  try {
+    await startAuthenticatedSession(user);
+  } finally {
+    sessionUserBeingLoaded = null;
+  }
+}
+
+async function initAuth() {
+  try {
+    const response = await fetch('/api/config');
+
+    if (!response.ok) {
+      throw new Error(
+        'Could not load /api/config. HTTP status: ' + response.status
+      );
+    }
+
+    const config = await response.json();
+
+    if (
+      !config.supabase_url ||
+      !config.supabase_anon_key ||
+      !window.supabase
+    ) {
+      authMessage(
+        'Supabase is not configured. Check SUPABASE_URL and SUPABASE_ANON_KEY on Render.'
+      );
+      return;
+    }
+
+    supabaseClient = window.supabase.createClient(
+      config.supabase_url,
+      config.supabase_anon_key,
+      {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true
+        }
+      }
+    );
+
+    supabaseReady = true;
+
+    // Listen for authentication changes before checking the saved session.
+    const { data: listenerData, error: listenerError } =
+      supabaseClient.auth.onAuthStateChange((event, session) => {
+        // Defer async work to avoid blocking Supabase's auth callback.
+        if (event === 'SIGNED_IN' && session?.user) {
+          setTimeout(() => {
+            handleSignedInUser(session.user);
+          }, 0);
+        }
+
+        if (event === 'SIGNED_OUT') {
+          activeUser = null;
+          sessionUserBeingLoaded = null;
+          $('studyApp').classList.remove('unlocked');
+          $('studyApp').style.display = 'none';
+          $('authShell').style.display = 'grid';
+        }
+      });
+
+    if (listenerError) throw listenerError;
+
+    authSubscription = listenerData.subscription;
+
+    // Restore the existing login after Google redirects back to the site.
+    const { data, error } = await supabaseClient.auth.getSession();
+
+    if (error) throw error;
+
+    if (data.session?.user) {
+      await handleSignedInUser(data.session.user);
+    }
+  } catch (err) {
+    authMessage(
+      'Could not restore your login: ' +
+      (err.message || 'Check your Supabase configuration.')
+    );
+
+    console.error('StudyStack authentication initialization failed:', err);
+  }
+}
+
+// Start the existing app.
+setAuthMode('login');
+resetForm();
+render();
+initAuth();
+
+setInterval(() => {
+  if (activeUser) refreshGreeting();
+}, 60000);
+
 </script>
 </body>
 </html>
