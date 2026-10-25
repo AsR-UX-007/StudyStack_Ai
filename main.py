@@ -53,40 +53,40 @@ def public_config():
     }
 
 
+import time
+import random
 
 def generate_with_retry(client, model, prompt):
-    from google.genai import types
+    last_error = None
 
-    for attempt in range(2):
+    for attempt in range(3):
         try:
-            return client.models.generate_content(
+            # Keep your existing Gemini generation call here.
+            response = client.models.generate_content(
                 model=model,
                 contents=prompt,
-                config=types.GenerateContentConfig(
-                    temperature=0.4,
-                    max_output_tokens=500
-                )
             )
-        except Exception as exc:
-            message = str(exc).upper()
+            return response
 
-            temporary_error = any(code in message for code in [
-                "503",
-                "UNAVAILABLE",
-                "429",
-                "RESOURCE_EXHAUSTED",
-                "500",
-                "INTERNAL",
-                "504",
-                "DEADLINE_EXCEEDED"
-            ])
+        except Exception as e:
+            last_error = e
+            error_text = str(e)
 
-            if not temporary_error or attempt == 1:
+            # Retry only temporary server errors.
+            if not any(code in error_text for code in
+                       ["503", "UNAVAILABLE", "429", "500", "502", "504"]):
                 raise
 
-            print("Temporary Gemini error. Retrying once in 1 second.")
-            time.sleep(1)
+            if attempt < 2:
+                delay = (2 ** attempt) + random.uniform(0, 0.5)
+                print(
+                    f"Temporary Gemini error. "
+                    f"Retrying in {delay:.1f}s "
+                    f"(attempt {attempt + 1}/3)"
+                )
+                time.sleep(delay)
 
+    raise last_error
 
 @app.post("/api/chat")
 def chat(payload: ChatRequest):
