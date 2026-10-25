@@ -238,24 +238,11 @@ $('chatForm').addEventListener('submit', async e=>{
   addBubble(q,'user'); $('chatInput').value='';
   const wait=document.createElement('div'); wait.className='bubble ai'; wait.textContent='Thinking…'; $('chat').appendChild(wait); $('chat').scrollTop=$('chat').scrollHeight;
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000);
-    let response;
-    try {
-      response = await fetch('/api/chat', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({message:q, tasks:tasks.map(t=>({name:t.name,subject:t.subject,priority:t.priority,deadline:t.deadline,completed:t.completed,duration:t.duration}))}),
-        signal: controller.signal
-      });
-    } catch (err) {
-      if (err.name === 'AbortError') {
-        throw new Error('The AI is taking too long. Please try again.');
-      }
-      throw err;
-    } finally {
-      clearTimeout(timeoutId);
-    }
+    const response = await fetch('/api/chat', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({message:q, tasks:tasks.map(t=>({name:t.name,subject:t.subject,priority:t.priority,deadline:t.deadline,completed:t.completed,duration:t.duration}))})
+    });
     const data = await response.json();
     wait.remove();
     if (!response.ok) throw new Error(data.detail || 'AI request failed');
@@ -317,18 +304,53 @@ $('googleSignIn').addEventListener('click',async()=>{
   const {error}=await supabaseClient.auth.signInWithOAuth({provider:'google',options:{redirectTo:window.location.origin}});if(error)authMessage(error.message);
 });
 $('signOutBtn').addEventListener('click',async()=>{if(supabaseClient)await supabaseClient.auth.signOut();activeUser=null;supabaseReady=false;$('studyApp').classList.remove('unlocked');$('studyApp').style.display='none';$('authShell').style.display='grid';$('authPassword').value='';setAuthMode('login')});
+let sessionUserBeingLoaded = null;
+let authSubscription = null;
+async function handleSignedInUser(user){
+  if(!user) return;
+  // Avoid loading the same user's tasks twice when the OAuth callback and getSession overlap.
+  if(activeUser?.id===user.id || sessionUserBeingLoaded===user.id) return;
+  sessionUserBeingLoaded=user.id;
+  try {
+    await startAuthenticatedSession(user);
+  } finally {
+    sessionUserBeingLoaded=null;
+  }
+}
 async function initAuth(){
   try{
-    const response=await fetch('/api/config');const config=await response.json();
-    if(!config.supabase_url||!config.supabase_anon_key||!window.supabase){authMessage('Supabase is not configured yet. Add SUPABASE_URL and SUPABASE_ANON_KEY to Render, then redeploy.');return}
-    supabaseClient=window.supabase.createClient(config.supabase_url,config.supabase_anon_key);supabaseReady=true;
-    const {data,error}=await supabaseClient.auth.getSession();if(error)throw error;
-    if(data.session) await startAuthenticatedSession(data.session.user);
-    supabaseClient.auth.onAuthStateChange(async(event,session)=>{
-      if(event==='SIGNED_IN'&&session?.user&&(!activeUser||activeUser.id!==session.user.id)) await startAuthenticatedSession(session.user);
-      if(event==='SIGNED_OUT'){activeUser=null;$('studyApp').classList.remove('unlocked');$('authShell').style.display='grid'}
+    const response=await fetch('/api/config');
+    if(!response.ok) throw new Error('Could not load /api/config ('+response.status+').');
+    const config=await response.json();
+    if(!config.supabase_url||!config.supabase_anon_key||!window.supabase){
+      authMessage('Supabase is not configured yet. Check SUPABASE_URL and SUPABASE_ANON_KEY on Render.');
+      return;
+    }
+    supabaseClient=window.supabase.createClient(config.supabase_url,config.supabase_anon_key,{
+      auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}
     });
-  }catch(err){authMessage('Could not initialize login: '+(err.message||'Check Supabase configuration.'));console.error(err)}
+    supabaseReady=true;
+
+    // Register the listener before reading the session, so OAuth callbacks aren't missed.
+    const {data:listenerData}=supabaseClient.auth.onAuthStateChange((event,session)=>{
+      // Do not await Supabase network operations inside this callback; defer them to avoid deadlocks.
+      if(event==='SIGNED_IN' && session?.user){
+        setTimeout(()=>handleSignedInUser(session.user),0);
+      } else if(event==='SIGNED_OUT'){
+        activeUser=null;
+        $('studyApp').classList.remove('unlocked');
+        $('authShell').style.display='grid';
+      }
+    });
+    authSubscription=listenerData.subscription;
+
+    const {data,error}=await supabaseClient.auth.getSession();
+    if(error) throw error;
+    if(data.session?.user) await handleSignedInUser(data.session.user);
+  }catch(err){
+    authMessage('Could not restore your login: '+(err.message||'Check Supabase configuration.'));
+    console.error('StudyStack auth initialization failed:',err);
+  }
 }
 setAuthMode('login');resetForm();render();initAuth();
 setInterval(()=>{if(activeUser)refreshGreeting()},60000);
