@@ -8,14 +8,7 @@ from pydantic import BaseModel, Field
 
 BASE_DIR = Path(__file__).resolve().parent
 app = FastAPI(title="StudyStack AI", version="1.1.0")
-ASSETS_DIR = BASE_DIR / "assets"
-
-if ASSETS_DIR.is_dir():
-    app.mount(
-        "/assets",
-        StaticFiles(directory=ASSETS_DIR),
-        name="assets"
-    )
+app.mount("/assets", StaticFiles(directory=BASE_DIR / "assets"), name="assets")
 
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
@@ -31,6 +24,14 @@ def health():
     return {"status": "ok", "ai_configured": configured,
             "provider": "Google Gemini" if configured else "local-demo"}
 
+@app.get("/api/config")
+def public_config():
+    # Supabase anon/publishable keys are intended for browser use; protect data with RLS.
+    return {
+        "supabase_url": os.getenv("SUPABASE_URL", ""),
+        "supabase_anon_key": os.getenv("SUPABASE_ANON_KEY", ""),
+    }
+
 @app.post("/api/chat")
 def chat(payload: ChatRequest):
     api_key = os.getenv("GEMINI_API_KEY")
@@ -38,7 +39,7 @@ def chat(payload: ChatRequest):
         return {"mode": "demo", "reply": "Real AI is not configured. Set GEMINI_API_KEY and restart the backend."}
     try:
         from google import genai
-        model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+        model = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
         client = genai.Client(api_key=api_key)
         prompt = (
             "You are StudyStack AI, a friendly study coach for college students. "
