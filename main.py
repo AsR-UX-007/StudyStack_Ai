@@ -121,11 +121,12 @@ def chat(payload: ChatRequest):
 
         from google.genai import types
 
-response = generate_with_retry(
-    client,
-    model,
-    prompt
-)
+        response = generate_with_retry(
+            client,
+            model,
+            prompt
+        )
+
 
         answer = (getattr(response, "text", None) or "").strip()
 
