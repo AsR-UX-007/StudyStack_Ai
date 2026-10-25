@@ -10,10 +10,37 @@
 @media(max-width:1050px){.sidebar{width:215px}.main{margin-left:215px;width:calc(100% - 215px);padding:24px 20px}.stats{grid-template-columns:repeat(2,1fr)}.grid2{grid-template-columns:1fr}.dsa-grid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:700px){.sidebar{width:245px;transform:translateX(-100%);transition:transform .25s}.sidebar.open{transform:translateX(0)}.main{margin-left:0;width:100%;padding:18px 13px 30px}.mobile-menu{display:inline-flex}.topbar{align-items:flex-start}.topbar h1{font-size:21px}.date-pill{display:none}.stats{gap:9px}.stat{padding:12px;gap:8px}.stat-icon{width:34px;height:34px}.stat strong{font-size:21px}.card{padding:15px}.dsa-grid{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr}.full{grid-column:auto}.progress-wrap{gap:13px}.ring{width:90px;height:90px}.top-actions .btn{padding:9px 11px}.brand{padding-bottom:20px}}
 @media(max-width:390px){.dsa-grid{grid-template-columns:1fr}.stats{grid-template-columns:1fr 1fr}.stat span{font-size:10px}}
+
+/* Authentication screen */
+.auth-shell{min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at 15% 15%,#e4e7ff 0,transparent 34%),radial-gradient(circle at 90% 85%,#e4f5ff 0,transparent 32%),#f4f7fc}
+.auth-card{width:min(100%,440px);background:#fff;border:1px solid #e5ebf5;border-radius:24px;padding:30px;box-shadow:0 24px 70px rgba(25,48,89,.13)}
+.auth-brand{display:flex;align-items:center;gap:11px;font-weight:850;font-size:22px;color:#0b1730;margin-bottom:25px}.auth-brand-mark{width:43px;height:43px;border-radius:14px;display:grid;place-items:center;color:white;background:linear-gradient(135deg,#a78bfa,#4f5df5);font-size:24px}
+.auth-card h1{font-size:27px;margin:0 0 8px}.auth-sub{font-size:13px;line-height:1.6;color:#71809c;margin-bottom:22px}.auth-tabs{display:grid;grid-template-columns:1fr 1fr;background:#f2f5fb;padding:4px;border-radius:12px;margin-bottom:18px}.auth-tabs button{border:0;background:transparent;border-radius:9px;padding:10px;color:#64748b;font-weight:700;font-size:13px}.auth-tabs button.active{background:#fff;color:#3447bd;box-shadow:0 2px 7px #10264b12}.auth-field{display:grid;gap:7px;margin-bottom:14px}.auth-field label{font-size:12px;font-weight:750;color:#394965}.auth-field input{width:100%;padding:13px 14px;border:1px solid #dce4f1;border-radius:11px;outline:none}.auth-field input:focus{border-color:#8290ff;box-shadow:0 0 0 3px #4f5df51a}.auth-submit,.google-btn{width:100%;border-radius:11px;padding:13px;border:0;font-weight:750;font-size:13px}.auth-submit{background:linear-gradient(100deg,#4f5df5,#8058ec);color:#fff;box-shadow:0 8px 18px #4f5df52b}.google-btn{margin-top:10px;background:#fff;border:1px solid #dce4f1;color:#26344d}.auth-divider{display:flex;align-items:center;gap:12px;color:#9aa6ba;font-size:11px;margin:15px 0}.auth-divider:before,.auth-divider:after{content:'';height:1px;background:#e5ebf5;flex:1}.auth-message{font-size:12px;line-height:1.5;margin-top:13px;color:#b42318;min-height:16px}.auth-foot{font-size:11px;color:#94a3b8;line-height:1.6;margin-top:18px}.logout-btn{margin-left:auto;border:1px solid #31486b;color:#d9e4ff;background:#172f55;border-radius:8px;padding:7px 9px;font-size:10px}.app{display:none}.app.unlocked{display:flex}
+@media(max-width:480px){.auth-card{padding:23px;border-radius:20px}.auth-shell{padding:14px}.auth-card h1{font-size:24px}}
+
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
-<div class="app">
+<section class="auth-shell" id="authShell">
+  <div class="auth-card">
+    <div class="auth-brand"><span class="auth-brand-mark">✦</span> StudyStack <span style="color:#8b5cf6;margin-left:-8px">AI</span></div>
+    <h1 id="authTitle">Welcome back</h1>
+    <div class="auth-sub" id="authSubtitle">Sign in to open your personal study workspace.</div>
+    <div class="auth-tabs"><button id="loginTab" class="active" type="button">Sign in</button><button id="signupTab" type="button">Create account</button></div>
+    <form id="authForm">
+      <div class="auth-field" id="nameField" style="display:none"><label for="authName">Your name</label><input id="authName" autocomplete="name" placeholder="e.g. Alex Morgan" maxlength="80"></div>
+      <div class="auth-field"><label for="authEmail">Email address</label><input id="authEmail" type="email" autocomplete="email" placeholder="you@example.com" required></div>
+      <div class="auth-field"><label for="authPassword">Password</label><input id="authPassword" type="password" autocomplete="current-password" minlength="6" placeholder="At least 6 characters" required></div>
+      <button class="auth-submit" id="authSubmit" type="submit">Sign in</button>
+    </form>
+    <div class="auth-divider">OR</div>
+    <button class="google-btn" id="googleSignIn" type="button">◎ Continue with Google</button>
+    <div class="auth-message" id="authMessage" role="status"></div>
+    <div class="auth-foot">Your tasks and study progress are saved to your account. Never share your password with anyone.</div>
+  </div>
+</section>
+<div class="app" id="studyApp">
 <aside class="sidebar" id="sidebar">
   <div class="brand"><span class="brand-mark">✦</span> StudyStack <span style="color:#b8a6ff;margin-left:-7px">AI</span></div>
   <div class="nav-label">Workspace</div>
@@ -25,11 +52,11 @@
     <button data-page="assistant"><span class="ico">✧</span> AI Assistant</button>
     <button data-page="dsa"><span class="ico">⌘</span> DSA Visualization</button>
   </nav>
-  <div class="sidebar-bottom"><div class="avatar">AS</div><div><b>Archisman</b><small>Student workspace</small></div></div>
+  <div class="sidebar-bottom"><div class="avatar" id="userAvatar">ST</div><div style="min-width:0"><b id="sidebarUserName">Student</b><small>Student workspace</small></div><button class="logout-btn" id="signOutBtn" type="button">Sign out</button></div>
 </aside>
 <main class="main">
   <header class="topbar">
-    <div style="display:flex;gap:10px;align-items:flex-start"><button class="btn secondary mobile-menu" id="menuBtn">☰</button><div><div class="eyebrow" id="eyebrow">YOUR PERSONAL STUDY SPACE</div><h1 id="pageTitle">Good morning, Archisman! 👋</h1><div class="muted" id="pageSub">Here’s your study overview for today.</div></div></div>
+    <div style="display:flex;gap:10px;align-items:flex-start"><button class="btn secondary mobile-menu" id="menuBtn">☰</button><div><div class="eyebrow" id="eyebrow">YOUR PERSONAL STUDY SPACE</div><h1 id="pageTitle">Welcome to StudyStack AI 👋</h1><div class="muted" id="pageSub">Here’s your study overview for today.</div></div></div>
     <div class="top-actions"><span class="date-pill" id="todayDate"></span><button class="btn" id="quickAdd">＋ Add task</button></div>
   </header>
 
@@ -78,7 +105,7 @@
     <div class="card"><div class="card-head"><div><h2>✧ AI study assistant</h2><div class="muted">Ask for a study plan, task advice or a simple DSA explanation.</div></div><span class="pill" id="aiStatus">Checking AI connection…</span></div>
       <div class="tip" id="aiNotice" style="margin:0 0 15px">Connecting to the AI service… If the server has an API key configured, answers will come from a real AI model.</div>
       <div class="suggestions"><button class="suggestion" data-prompt="Create a 5-day study plan">Create a 5-day study plan</button><button class="suggestion" data-prompt="What should I study first?">What should I study first?</button><button class="suggestion" data-prompt="Explain a stack in simple words">Explain a stack simply</button><button class="suggestion" data-prompt="Explain a priority queue">Explain priority queue</button></div>
-      <div class="chat" id="chat"><div class="bubble ai">Hi Archisman! 👋 I’m your StudyStack assistant. I can help you make a study plan, choose your next task, or explain DSA concepts. What would you like help with?</div></div>
+      <div class="chat" id="chat"><div class="bubble ai">Hi there! 👋 I’m your StudyStack assistant. I can help you make a study plan, choose your next task, or explain DSA concepts. What would you like help with?</div></div>
       <form class="chat-form" id="chatForm"><input id="chatInput" placeholder="Ask me anything about your study plan..." autocomplete="off" required><button class="btn" type="submit">Send ↑</button></form>
     </div>
   </section>
@@ -114,10 +141,24 @@ const seed = [
 {id:8,name:'Computer Science Quiz',subject:'Computer Science',priority:'High',deadline:addDays(-1),duration:'30 minutes',notes:'',completed:true}
 ];
 let tasks;
-try{tasks=JSON.parse(localStorage.getItem('studystack_tasks'))||seed}catch(e){tasks=seed}
+let activeUser = null;
+let supabaseClient = null;
+let supabaseReady = false;
+let taskStorageKey = 'studystack_tasks_guest';
+let cloudSaveTimer = null;
+try{tasks=JSON.parse(localStorage.getItem(taskStorageKey))||seed}catch(e){tasks=seed}
 let history=[];
 let nextId=Math.max(0,...tasks.map(t=>t.id||0))+1;
-function persist(){localStorage.setItem('studystack_tasks',JSON.stringify(tasks))}
+function persist(){
+  try{localStorage.setItem(taskStorageKey,JSON.stringify(tasks))}catch(e){}
+  if(supabaseReady && activeUser && supabaseClient){
+    clearTimeout(cloudSaveTimer);
+    cloudSaveTimer=setTimeout(async()=>{
+      const {error}=await supabaseClient.from('student_data').upsert({user_id:activeUser.id,tasks:tasks,updated_at:new Date().toISOString()},{onConflict:'user_id'});
+      if(error) console.error('Could not sync tasks to Supabase:',error.message);
+    },350);
+  }
+}
 function snapshot(){history.push(JSON.stringify(tasks));if(history.length>30)history.shift();updateUndo()}
 function updateUndo(){const b=$('undoBtn');if(b){b.disabled=!history.length;b.style.opacity=history.length?1:.5}$('stackChip').textContent=`Undo history: ${history.length} action${history.length===1?'':'s'}`}
 function toast(msg){const el=$('toast');el.textContent=msg;el.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>el.classList.remove('show'),2300)}
@@ -147,8 +188,11 @@ function render(){
  updateUndo();persist();
 }
 function queueHTML(){const a=sortedTasks(tasks.filter(t=>!t.completed),'deadline').slice(0,4);return a.length?a.map((t,i)=>`${i?'<span class="arrow">→</span>':''}<span class="queue-item">${esc(t.name.length>19?t.name.slice(0,17)+'…':t.name)}</span>`).join(''):'<span class="muted">Queue is empty</span>'}
-const pages={dashboard:['Good morning, Archisman! 👋','Here’s your study overview for today.'],add:['Add a new task','Make a small plan. Your future self will thank you.'],tasks:['My tasks','All your assignments, organized in one place.'],priority:['Priority planner','Focus on the tasks that matter most first.'],assistant:['AI study assistant','A little guidance can make studying easier.'],dsa:['DSA visualization lab','See how data structures power this website.']};
-function go(page){document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active',p.id==='page-'+page));document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===page));$('pageTitle').textContent=pages[page][0];$('pageSub').textContent=pages[page][1];$('sidebar').classList.remove('open');window.scrollTo({top:0,behavior:'smooth'});if(page==='tasks')render();if(page==='dsa')render()}
+function timeGreeting(){const h=new Date().getHours();return h<12?'Good morning':h<17?'Good afternoon':'Good evening'}
+function currentDisplayName(){return activeUser?.user_metadata?.full_name || activeUser?.user_metadata?.name || activeUser?.email?.split('@')[0] || 'Student'}
+const pages={dashboard:['','Here’s your study overview for today.'],add:['Add a new task','Make a small plan. Your future self will thank you.'],tasks:['My tasks','All your assignments, organized in one place.'],priority:['Priority planner','Focus on the tasks that matter most first.'],assistant:['AI study assistant','A little guidance can make studying easier.'],dsa:['DSA visualization lab','See how data structures power this website.']};
+function refreshGreeting(){const name=currentDisplayName();const title=`${timeGreeting()}, ${name}! 👋`;if(document.querySelector('.page.active')?.id==='page-dashboard')$('pageTitle').textContent=title;}
+function go(page){document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active',p.id==='page-'+page));document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===page));$('pageTitle').textContent=page==='dashboard'?`${timeGreeting()}, ${currentDisplayName()}! 👋`:pages[page][0];$('pageSub').textContent=pages[page][1];$('sidebar').classList.remove('open');window.scrollTo({top:0,behavior:'smooth'});if(page==='tasks')render();if(page==='dsa')render()}
 document.querySelectorAll('#nav button').forEach(b=>b.addEventListener('click',()=>go(b.dataset.page)));
 document.addEventListener('click',e=>{const g=e.target.closest('[data-go]');if(g)go(g.dataset.go)});
 $('quickAdd').addEventListener('click',()=>{resetForm();go('add')});
@@ -212,7 +256,69 @@ $('chatForm').addEventListener('submit', async e=>{
 });
 
 document.querySelectorAll('[data-prompt]').forEach(b=>b.addEventListener('click',()=>{$('chatInput').value=b.dataset.prompt;$('chatForm').requestSubmit()}));
-resetForm();render();
+
+// Supabase authentication + per-account cloud task storage.
+let authMode='login';
+function authMessage(message,isError=true){$('authMessage').textContent=message||'';$('authMessage').style.color=isError?'#b42318':'#07865c'}
+function setAuthMode(mode){authMode=mode;const signup=mode==='signup';$('nameField').style.display=signup?'grid':'none';$('authName').required=signup;$('loginTab').classList.toggle('active',!signup);$('signupTab').classList.toggle('active',signup);$('authTitle').textContent=signup?'Create your account':'Welcome back';$('authSubtitle').textContent=signup?'Create a personal workspace for your study tasks.':'Sign in to open your personal study workspace.';$('authSubmit').textContent=signup?'Create account':'Sign in';$('authPassword').autocomplete=signup?'new-password':'current-password';authMessage('')}
+$('loginTab').addEventListener('click',()=>setAuthMode('login'));
+$('signupTab').addEventListener('click',()=>setAuthMode('signup'));
+async function loadUserTasks(user){
+  activeUser=user;taskStorageKey='studystack_tasks_'+user.id;
+  const {data,error}=await supabaseClient.from('student_data').select('tasks').eq('user_id',user.id).maybeSingle();
+  if(error) throw new Error('Could not load your tasks. Check that the Supabase student_data table and RLS policies are created. '+error.message);
+  if(data && Array.isArray(data.tasks)) tasks=data.tasks;
+  else {
+    try{tasks=JSON.parse(localStorage.getItem(taskStorageKey))||[]}catch(e){tasks=[]}
+    const {error:saveError}=await supabaseClient.from('student_data').upsert({user_id:user.id,tasks:tasks,updated_at:new Date().toISOString()},{onConflict:'user_id'});
+    if(saveError) throw new Error('Could not create your task space. Check the Supabase table and RLS policies. '+saveError.message);
+  }
+  nextId=Math.max(0,...tasks.map(t=>Number(t.id)||0))+1;history=[];persist();render();
+}
+function unlockApp(user){
+  activeUser=user;const name=currentDisplayName();const initials=name.trim().split(/\s+/).slice(0,2).map(x=>x[0]).join('').toUpperCase()||'ST';
+  $('sidebarUserName').textContent=name;$('userAvatar').textContent=initials;$('authShell').style.display='none';$('studyApp').classList.add('unlocked');
+  $('chat').innerHTML=`<div class="bubble ai">Hi ${esc(name)}! 👋 I’m your StudyStack assistant. I can help you make a study plan, choose your next task, or explain DSA concepts. What would you like help with?</div>`;
+  go('dashboard');refreshGreeting();checkAIStatus();
+}
+async function startAuthenticatedSession(user){
+  try{await loadUserTasks(user);unlockApp(user);}
+  catch(e){authMessage(e.message);console.error(e);}
+}
+$('authForm').addEventListener('submit',async e=>{
+  e.preventDefault();if(!supabaseClient){authMessage('Authentication setup is incomplete. Check SUPABASE_URL and SUPABASE_ANON_KEY on Render.');return}
+  const email=$('authEmail').value.trim(),password=$('authPassword').value;
+  $('authSubmit').disabled=true;$('authSubmit').textContent=authMode==='signup'?'Creating account…':'Signing in…';authMessage('');
+  try{
+    if(authMode==='signup'){
+      const full_name=$('authName').value.trim();if(!full_name)throw new Error('Please enter your name.');
+      const {data,error}=await supabaseClient.auth.signUp({email,password,options:{data:{full_name}}});if(error)throw error;
+      if(data.session) await startAuthenticatedSession(data.user); else authMessage('Account created. Check your email to confirm your account, then sign in.',false);
+    } else {
+      const {data,error}=await supabaseClient.auth.signInWithPassword({email,password});if(error)throw error;await startAuthenticatedSession(data.user);
+    }
+  }catch(err){authMessage(err.message||'Authentication failed. Please try again.')}finally{$('authSubmit').disabled=false;$('authSubmit').textContent=authMode==='signup'?'Create account':'Sign in'}
+});
+$('googleSignIn').addEventListener('click',async()=>{
+  if(!supabaseClient){authMessage('Authentication setup is incomplete. Check Supabase environment variables on Render.');return}
+  const {error}=await supabaseClient.auth.signInWithOAuth({provider:'google',options:{redirectTo:window.location.origin}});if(error)authMessage(error.message);
+});
+$('signOutBtn').addEventListener('click',async()=>{if(supabaseClient)await supabaseClient.auth.signOut();activeUser=null;supabaseReady=false;$('studyApp').classList.remove('unlocked');$('studyApp').style.display='none';$('authShell').style.display='grid';$('authPassword').value='';setAuthMode('login')});
+async function initAuth(){
+  try{
+    const response=await fetch('/api/config');const config=await response.json();
+    if(!config.supabase_url||!config.supabase_anon_key||!window.supabase){authMessage('Supabase is not configured yet. Add SUPABASE_URL and SUPABASE_ANON_KEY to Render, then redeploy.');return}
+    supabaseClient=window.supabase.createClient(config.supabase_url,config.supabase_anon_key);supabaseReady=true;
+    const {data,error}=await supabaseClient.auth.getSession();if(error)throw error;
+    if(data.session) await startAuthenticatedSession(data.session.user);
+    supabaseClient.auth.onAuthStateChange(async(event,session)=>{
+      if(event==='SIGNED_IN'&&session?.user&&(!activeUser||activeUser.id!==session.user.id)) await startAuthenticatedSession(session.user);
+      if(event==='SIGNED_OUT'){activeUser=null;$('studyApp').classList.remove('unlocked');$('authShell').style.display='grid'}
+    });
+  }catch(err){authMessage('Could not initialize login: '+(err.message||'Check Supabase configuration.'));console.error(err)}
+}
+setAuthMode('login');resetForm();render();initAuth();
+setInterval(()=>{if(activeUser)refreshGreeting()},60000);
 </script>
 </body>
 </html>
