@@ -54,71 +54,41 @@ def public_config():
 
 
 
+
 import time
 import random
 
 
 def generate_with_retry(client, model, prompt):
-    # Try the configured model first, then a fallback model.
-    models_to_try = [model]
+    for attempt in range(2):
+        try:
+            return client.models.generate_content(
+                model=model,
+                contents=prompt,
+            )
 
-    if model != "gemini-3.6-flash":
-        models_to_try.append("gemini-3.6-flash")
+        except Exception as exc:
+            error_text = str(exc).upper()
 
-    last_error = None
-
-    for current_model in models_to_try:
-        for attempt in range(2):
-            try:
-                print(f"Trying Gemini model: {current_model}")
-
-                response = client.models.generate_content(
-                    model=current_model,
-                    contents=prompt,
+            temporary = any(
+                code in error_text
+                for code in (
+                    "503",
+                    "UNAVAILABLE",
+                    "429",
+                    "RESOURCE_EXHAUSTED",
+                    "500",
+                    "502",
+                    "504",
                 )
+            )
 
-                return response
+            if not temporary or attempt == 1:
+                raise
 
-            except Exception as exc:
-                last_error = exc
-                error_text = str(exc).upper()
-
-                temporary_error = any(
-                    code in error_text
-                    for code in [
-                        "503",
-                        "UNAVAILABLE",
-                        "429",
-                        "RESOURCE_EXHAUSTED",
-                        "500",
-                        "502",
-                        "504",
-                        "DEADLINE_EXCEEDED",
-                    ]
-                )
-
-                if not temporary_error:
-                    raise
-
-                if attempt < 1:
-                    delay = 2 + random.uniform(0, 1)
-                    print(
-                        f"Temporary error with {current_model}. "
-                        f"Retrying in {delay:.1f} seconds."
-                    )
-                    time.sleep(delay)
-
-                elif "503" in error_text or "UNAVAILABLE" in error_text:
-                    print(
-                        f"{current_model} remains unavailable. "
-                        "Trying the next model if available."
-                    )
-
-                elif "429" in error_text or "RESOURCE_EXHAUSTED" in error_text:
-                    # A different model may share the same quota limits.
-                    raise
-
-    raise last_error
+            delay = 1 + random.uniform(0, 0.5)
+            print(f"Temporary Gemini error. Retrying once.")
+            time.sleep(delay)
 
 
 @app.post("/api/chat")
